@@ -1,0 +1,16 @@
+{
+  "name": "dsh-webui-iphone",
+  "version": "1.0.0",
+  "description": "DSH Web UI iPhone 移动端适配 Skill",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client.js"
+  },
+  "files": ["src", "cordis.patch.yml", "README.md", "LICENSE", "docs"],
+  "scripts": {"check": "node --check src/index.js && node --check src/client.js"},
+  "keywords": ["deepseek-harness", "dsh", "iphone", "mobile", "web-ui", "skill"],
+  "author": "skylincn",
+  "license": "MIT"
+}

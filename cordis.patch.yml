@@ -1,0 +1,13 @@
+plugin:
+  id: dsh-webui-iphone
+  kind: existing
+packages:
+  - name: iphone-mobile-support
+    kind: new
+    idPrefix: iphone
+    purpose: "DSH Web UI iPhone 移动端适配"
+    code:
+      host: |
+        export default function(ctx) { return { apply(ctx) {} } }
+      client: |
+        module.exports = require('./client.js')
