@@ -1,0 +1,92 @@
+diff --git a/packages/client/runtime/src/client/sessions/manager.ts b/packages/client/runtime/src/client/sessions/manager.ts
+index 13aa20d1c8..89d572a36d 100644
+--- a/packages/client/runtime/src/client/sessions/manager.ts
++++ b/packages/client/runtime/src/client/sessions/manager.ts
+@@ -150,6 +150,10 @@ export class SessionManager {
+ 
+   private selected: SessionId | undefined
+ 
++  /** BroadcastChannel for cross-tab session sync. */
++  private readonly syncChannel: BroadcastChannel | null =
++    typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('dsh-sessions-sync') : null
++
+   private listSnapshotCache: SessionListSnapshot
+   /** Entry-identity cache (reference stability): list rebuilds reuse the previous entry
+    *  object when every field matches — wire refreshes mint all-new summary objects, so identity
+@@ -174,6 +178,44 @@ export class SessionManager {
+     this.selected = restoredSelection
+     if (restoredAddress !== undefined) this.addresses.set(restoredAddress.childSessionId, restoredAddress)
+     this.listSnapshotCache = this.buildListSnapshot()
++    // Setup cross-tab sync listener
++    this.setupCrossTabSync()
++  }
++
++  /** Setup BroadcastChannel and storage event listener for cross-tab sync. */
++  private setupCrossTabSync(): void {
++    if (typeof window === 'undefined') return
++
++    // Listen to BroadcastChannel messages
++    this.syncChannel?.addEventListener('message', (event: MessageEvent) => {
++      const data = event.data
++      if (data?.type === 'dsh-session-change') {
++        void this.refreshList()
++      }
++    })
++
++    // Listen to storage events (fires on OTHER tabs when localStorage changes)
++    window.addEventListener('storage', (event: StorageEvent) => {
++      if (event.key === 'dsh.sessions.current') {
++        void this.refreshList()
++      }
++    })
++
++    // Refresh on window focus
++    window.addEventListener('focus', () => {
++      void this.refreshList()
++    })
++  }
++
++  /** Broadcast session change to other tabs. */
++  private broadcastSessionChange(): void {
++    if (this.syncChannel) {
++      try {
++        this.syncChannel.postMessage({ type: 'dsh-session-change', timestamp: Date.now() })
++      } catch {
++        // BroadcastChannel may fail in some contexts
++      }
++    }
+   }
+ 
+   // ---- Selection ----
+@@ -199,6 +241,7 @@ export class SessionManager {
+     this.completedNotifications.delete(sessionId)
+     void this.refreshSubagents(sessionId)
+     this.notifier.notifyNow()
++    this.broadcastSessionChange()
+   }
+ 
+   /**
+@@ -548,6 +591,7 @@ export class SessionManager {
+           ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+           ...(result.value.agentPreset !== undefined ? { agentPreset: result.value.agentPreset } : {}),
+         } })
++        this.broadcastSessionChange()
+       } else {
+         const publishedSessionId = workspaceAttachSessionId(result.error)
+         // Publication precedes attachment. The error's id is a real Session,
+@@ -595,6 +639,7 @@ export class SessionManager {
+           parentSessionId: opts.sessionId,
+           ...(source?.cwd !== undefined ? { cwd: source.cwd } : {}),
+         } })
++        this.broadcastSessionChange()
+       }
+       return result
+     } catch (error) {
+@@ -819,6 +864,7 @@ export class SessionManager {
+         this.recordMutation(durableSubagent
+           ? { kind: 'status', sessionId: frame.sessionId, running: false }
+           : { kind: 'remove', sessionId: frame.sessionId })
++        this.broadcastSessionChange()
+         this.updateCatalogActivity(frame.sessionId, false)
+         if (durableSubagent) {
+           // An Activation detaching is not durable child deletion:
